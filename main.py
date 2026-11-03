@@ -1,4 +1,4 @@
-from tkinker import *
+from tkinter import *
 
 root = Tk()
 root.title("StudUtilities")
