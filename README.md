@@ -3,7 +3,7 @@
 [🇬🇧 English](#english) | [🇷🇺 Русский](#русский)
 
 ## English
-**StudUtilities** is a Python program for working with Microsoft Word documents (.docx) that helps quickly bring documents into compliance with with Russian State Standards (GOST) requirements and conveniently replace characters in text.
+**StudUtilities** is a Python program for working with Microsoft Word documents (.docx) that helps quickly bring documents into compliance with Russian State Standards (GOST) requirements and conveniently replace characters in text.
 ### Features
 
 - 📄 **State Standard formatting** — automatic DOCX formatting:
