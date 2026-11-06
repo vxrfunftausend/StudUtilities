@@ -1,4 +1,5 @@
 import os
+import sys
 from docx import Document
 from docx.opc.exceptions import PackageNotFoundError
 from docx.shared import Pt, Mm
@@ -11,17 +12,123 @@ from typing import Dict
 from tkinter import ttk
 from pathlib import Path
 
+TRANSLATIONS = {
+    "ru": {
+        "choose_action": "Выберите действие",
+        "format_gost": "Подгон под ГОСТ",
+        "replace_text": "Замена текста",
+        "exit": "Выход",
+        "back": "Назад",
+        "refresh_list": "Обновить список",
+        "apply_gost": "Подогнать под ГОСТ",
+        "format_desc": "Просмотр и форматирование документов DOCX",
+        "replace_desc": "Замена текста в поле ввода",
+        "source_text": "Исходный текст:",
+        "find_label": "Заменить:",
+        "replace_with_label": "На:",
+        "replace_btn": "Заменить",
+        "copy_result": "Копировать результат",
+        "clear_btn": "Очистить",
+        "result_ro": "Результат (только для чтения):",
+        "select_file_first": "Сначала выберите файл в списке.",
+        "done_saved": "Готово.\nСохранено: ",
+        "list_refreshed": "Список обновлён.",
+        "save_failed": (
+            "Не удалось сохранить '{name}'.\n\n"
+            "Файл открыт в другой программе (например, Word) "
+            "или защищён от записи.\n"
+            "Закройте его и попробуйте снова."
+        ),
+        "process_failed": "Не удалось обработать '{name}':\n{err}",
+        "file_unavailable": (
+            "Файл недоступен:\n{path}\n\n"
+            "Нажмите «Обновить список»."
+        ),
+        "empty_file": "Файл пустой",
+        "file_not_found": "Файл не найден",
+        "file_corrupt": "Файл повреждён или не является DOCX",
+        "no_text": "Документ не содержит текста",
+    },
+    "en": {
+        "choose_action": "Choose an action",
+        "format_gost": "Format to State Standard",
+        "replace_text": "Replace text",
+        "exit": "Exit",
+        "back": "Back",
+        "refresh_list": "Refresh list",
+        "apply_gost": "Apply State Standard formatting",
+        "format_desc": "View and format DOCX documents",
+        "replace_desc": "Replace text in the input field",
+        "source_text": "Source text:",
+        "find_label": "Find:",
+        "replace_with_label": "Replace with:",
+        "replace_btn": "Replace",
+        "copy_result": "Copy result",
+        "clear_btn": "Clear",
+        "result_ro": "Result (read-only):",
+        "select_file_first": "Please select a file from the list first.",
+        "done_saved": "Done.\nSaved: ",
+        "list_refreshed": "List refreshed.",
+        "save_failed": (
+            "Could not save '{name}'.\n\n"
+            "The file is open in another program (e.g., Word) "
+            "or is write-protected.\n"
+            "Close it and try again."
+        ),
+        "process_failed": "Could not process '{name}':\n{err}",
+        "file_unavailable": (
+            "File unavailable:\n{path}\n\n"
+            "Click 'Refresh list'."
+        ),
+        "empty_file": "File is empty",
+        "file_not_found": "File not found",
+        "file_corrupt": "File is corrupted or not a DOCX",
+        "no_text": "Document contains no text",
+    },
+}
+
+current_lang = "en"
+
+
+def t(key: str) -> str:
+    return TRANSLATIONS[current_lang].get(key, key)
+
+
+_tr_widgets = []
+
+
+def reg(widget, key: str):
+    _tr_widgets.append((widget, key))
+    widget.configure(text=t(key))
+    return widget
+
+
+def apply_language() -> None:
+    for widget, key in _tr_widgets:
+        try:
+            widget.configure(text=t(key))
+        except tk.TclError:
+            pass
+
+
+def toggle_language() -> None:
+    global current_lang
+    current_lang = "en" if current_lang == "ru" else "ru"
+    apply_language()
+    lang_btn.configure(text="EN" if current_lang == "ru" else "RU")
+
+
 def read_docx_text(path: Path) -> str:
     size = path.stat().st_size
     if size == 0:
-        raise ValueError("Файл пустой")
+        raise ValueError(t("empty_file"))
 
     try:
         document = Document(str(path))
     except PackageNotFoundError:
-        raise ValueError("Файл не найден")
+        raise ValueError(t("file_not_found"))
     except Exception as e:
-        raise ValueError(f"Файл повреждён или не является DOCX ({type(e).__name__})")
+        raise ValueError(f"{t('file_corrupt')} ({type(e).__name__})")
 
     parts = [p.text for p in document.paragraphs if p.text.strip()]
     for table in document.tables:
@@ -32,9 +139,10 @@ def read_docx_text(path: Path) -> str:
 
     text = "\n".join(parts)
     if not text.strip():
-        raise ValueError("Документ не содержит текста")
+        raise ValueError(t("no_text"))
 
     return text
+
 
 def iter_all_paragraphs(doc):
     for p in doc.paragraphs:
@@ -44,6 +152,7 @@ def iter_all_paragraphs(doc):
             for cell in row.cells:
                 for p in cell.paragraphs:
                     yield p
+
 
 def add_numbers(paragraph) -> None:
     run = paragraph.add_run()
@@ -61,6 +170,7 @@ def add_numbers(paragraph) -> None:
     run._r.append(fld_begin)
     run._r.append(instr)
     run._r.append(fld_end)
+
 
 def formatting(doc) -> None:
     for paragraph in iter_all_paragraphs(doc):
@@ -94,12 +204,14 @@ def formatting(doc) -> None:
         section.top_margin    = Mm(20)
         section.bottom_margin = Mm(20)
 
-def filter(files):
-    result =[]
+
+def filter_docx(files):
+    result = []
     for f in files:
         if f.lower().endswith(".docx"):
             result.append(f)
     return result
+
 
 def get_docx_map(folder: Path) -> Dict[str, Path]:
     if not folder.is_dir():
@@ -109,12 +221,15 @@ def get_docx_map(folder: Path) -> Dict[str, Path]:
         if p.is_file() and p.name.lower().endswith(".docx")
     }
 
+
 def docx_to_text(path: Path) -> str:
     document = Document(str(path))
     return "\n".join(p.text for p in document.paragraphs)
 
+
 DOCS_DIR = Path(__file__).resolve().parent / "docs"
 files_map = get_docx_map(DOCS_DIR)
+
 
 def show_text(content: str):
     text.configure(state="normal")
@@ -122,11 +237,12 @@ def show_text(content: str):
     text.insert("1.0", content)
     text.configure(state="disabled")
 
+
 def apply_formatting() -> None:
     name = combobox.get()
     path = files_map.get(name)
     if path is None or not path.is_file():
-        show_text("Сначала выберите файл в списке.")
+        show_text(t("select_file_first"))
         return
 
     out_path = path.with_name(f"{path.stem}{path.suffix}")
@@ -135,62 +251,58 @@ def apply_formatting() -> None:
         formatting(doc)
         doc.save(str(out_path))
     except PermissionError:
-        show_text(
-            f"Не удалось сохранить '{out_path.name}'.\n\n"
-            "Файл открыт в другой программе (например, Word) "
-            "или защищён от записи.\n"
-            "Закройте его и попробуйте снова."
-        )
+        show_text(t("save_failed").format(name=out_path.name))
         return
     except Exception as e:
-        show_text(f"Не удалось обработать '{name}':\n{type(e).__name__}: {e}")
+        show_text(t("process_failed").format(
+            name=name, err=f"{type(e).__name__}: {e}"
+        ))
         return
 
     refresh_list()
-    show_text(f"Готово.\nСохранено: {out_path.name}")
+    show_text(t("done_saved") + out_path.name)
+
 
 def refresh_list():
     global files_map
     files_map = get_docx_map(DOCS_DIR)
     combobox["values"] = list(files_map.keys())
     combobox.set("")
-    show_text("Список обновлён.")
+    show_text(t("list_refreshed"))
+
 
 def selected(event):
     name = combobox.get()
     path = files_map.get(name)
     if path is None or not path.is_file():
-        show_text(f"Файл недоступен:\n{path}\n\nНажмите «Обновить список».")
+        show_text(t("file_unavailable").format(path=path))
         return
     try:
-        text = read_docx_text(path)
+        content = read_docx_text(path)
     except ValueError as e:
         show_text(f"«{name}»\n\n{e}")
         return
-    show_text(text)
-
-
-
-
-
-
-
-
+    show_text(content)
 
 
 
 root = Tk()
 root.title("StudUtilities")
-root.geometry("700x900")
+_base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+_ico = os.path.join(_base, "studutilities.ico")
+if os.path.exists(_ico):
+    root.iconbitmap(_ico)
+
+topbar = ttk.Frame(root)
+topbar.pack(fill="x", side="top")
+
+lang_btn = ttk.Button(topbar, text="EN", width=6, command=toggle_language)
+lang_btn.pack(side="right", padx=(0, 8), pady=(4, 0))
 
 container = ttk.Frame(root)
 container.pack(fill="both", expand=True)
 container.rowconfigure(0, weight=1)
 container.columnconfigure(0, weight=1)
-
-
-
-
 
 main_frame = ttk.Frame(container)
 header = ttk.Label(
@@ -201,34 +313,46 @@ header = ttk.Label(
     padding=(10, 8),
 )
 header.pack(fill="x")
-ttk.Label(
-    main_frame,
-    text="Выберите действие",
-    foreground="#666",
+
+reg(
+    ttk.Label(main_frame, text="", foreground="#666"),
+    "choose_action",
 ).pack(anchor="w", padx=10, pady=(0, 20))
 
 menu_buttons = ttk.Frame(main_frame)
 menu_buttons.pack(fill="x", padx=20, pady=10)
 
+reg(
+    ttk.Button(menu_buttons, text="",
+               command=lambda: show_page(format_frame)),
+    "format_gost",
+).pack(fill="x", pady=6)
 
+reg(
+    ttk.Button(menu_buttons, text="",
+               command=lambda: show_page(replace_frame)),
+    "replace_text",
+).pack(fill="x", pady=6)
 
-
-
-
+reg(
+    ttk.Button(menu_buttons, text="", command=root.destroy),
+    "exit",
+).pack(fill="x", pady=(20, 6))
 
 format_frame = ttk.Frame(container)
 format_header = ttk.Label(
     format_frame,
-    text="Подгон под ГОСТ",
+    text="",
     font=("Segoe UI", 16, "bold"),
     anchor="w",
     padding=(10, 8),
 )
 format_header.pack(fill="x")
-ttk.Label(
-    format_frame,
-    text="Просмотр и форматирование документов DOCX",
-    foreground="#666",
+reg(format_header, "format_gost")
+
+reg(
+    ttk.Label(format_frame, text="", foreground="#666"),
+    "format_desc",
 ).pack(anchor="w", padx=10, pady=(0, 6))
 
 files_map: Dict[str, Path] = get_docx_map(DOCS_DIR)
@@ -240,10 +364,18 @@ combobox.bind("<<ComboboxSelected>>", selected)
 toolbar = ttk.Frame(format_frame)
 toolbar.pack(fill="x", padx=10, pady=(0, 6))
 
-ttk.Button(toolbar, text="Назад", command=lambda: show_page(main_frame)).pack(side="left")
-ttk.Button(toolbar, text="Обновить список", command=refresh_list).pack(side="left", padx=(6, 0))
-ttk.Button(toolbar, text="Подогнать под ГОСТ", command=apply_formatting).pack(side="left", padx=(4, 0))
-ttk.Button(toolbar, text="Выход", command=root.destroy).pack(side="right")
+reg(ttk.Button(toolbar, text="",
+               command=lambda: show_page(main_frame)),
+    "back").pack(side="left")
+
+reg(ttk.Button(toolbar, text="", command=refresh_list),
+    "refresh_list").pack(side="left", padx=(6, 0))
+
+reg(ttk.Button(toolbar, text="", command=apply_formatting),
+    "apply_gost").pack(side="left", padx=(4, 0))
+
+reg(ttk.Button(toolbar, text="", command=root.destroy),
+    "exit").pack(side="right")
 
 text_frame = ttk.Frame(format_frame)
 text_frame.pack(fill="both", expand=True, padx=6, pady=0)
@@ -255,68 +387,127 @@ text.configure(yscrollcommand=scroll.set)
 text.pack(side="left", fill="both", expand=True)
 scroll.pack(side="right", fill="y")
 
-
-
 replace_frame = ttk.Frame(container)
 
 replace_header = ttk.Label(
     replace_frame,
-    text="Замена текста",
+    text="",
     font=("Segoe UI", 16, "bold"),
     anchor="w",
     padding=(10, 8),
 )
 replace_header.pack(fill="x")
-ttk.Label(
-    replace_frame,
-    text="Раздел находится в разработке",
-    foreground="#666",
+reg(replace_header, "replace_text")
+
+reg(
+    ttk.Label(replace_frame, text="", foreground="#666"),
+    "replace_desc",
 ).pack(anchor="w", padx=10, pady=(0, 6))
 
-replace_body = ttk.Frame(replace_frame)
-replace_body.pack(fill="both", expand=True, padx=20, pady=20)
-ttk.Label(
-    replace_body,
-    text="WIP",
-    justify="left",
-).pack(anchor="w", pady=(0, 20))
+replace_toolbar = ttk.Frame(replace_frame)
+replace_toolbar.pack(fill="x", padx=10, pady=(0, 6))
+reg(
+    ttk.Button(replace_toolbar, text="",
+               command=lambda: show_page(main_frame)),
+    "back",
+).pack(side="left")
 
-ttk.Button(
-    replace_body,
-    text="Назад",
-    command=lambda: show_page(main_frame),
-).pack(anchor="w")
+replace_body = ttk.Frame(replace_frame)
+replace_body.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+
+reg(ttk.Label(replace_body, text=""), "source_text").pack(anchor="w")
+
+input_frame = ttk.Frame(replace_body)
+input_frame.pack(fill="both", expand=True, pady=(4, 8))
+
+input_text = tk.Text(input_frame, wrap="word", height=6)
+input_scroll = ttk.Scrollbar(input_frame, orient="vertical",
+                             command=input_text.yview)
+input_text.configure(yscrollcommand=input_scroll.set)
+input_text.pack(side="left", fill="both", expand=True)
+input_scroll.pack(side="right", fill="y")
+
+search_frame = ttk.Frame(replace_body)
+search_frame.pack(fill="x", pady=(0, 8))
+search_frame.columnconfigure(1, weight=1)
+search_frame.columnconfigure(3, weight=1)
+
+reg(ttk.Label(search_frame, text=""), "find_label").grid(
+    row=0, column=0, sticky="w", padx=(0, 4)
+)
+find_entry = ttk.Entry(search_frame)
+find_entry.grid(row=0, column=1, sticky="ew", padx=(0, 12))
+
+reg(ttk.Label(search_frame, text=""), "replace_with_label").grid(
+    row=0, column=2, sticky="w", padx=(0, 4)
+)
+replace_entry = ttk.Entry(search_frame)
+replace_entry.grid(row=0, column=3, sticky="ew")
+
+
+def do_replace():
+    source = input_text.get("1.0", "end-1c")
+    find = find_entry.get()
+    repl = replace_entry.get()
+    result = source if find == "" else source.replace(find, repl)
+    output_text.configure(state="normal")
+    output_text.delete("1.0", "end")
+    output_text.insert("1.0", result)
+    output_text.configure(state="disabled")
+
+
+def copy_result():
+    root.clipboard_clear()
+    root.clipboard_append(output_text.get("1.0", "end-1c"))
+
+
+def clear_replace():
+    input_text.delete("1.0", "end")
+    find_entry.delete(0, "end")
+    replace_entry.delete(0, "end")
+    output_text.configure(state="normal")
+    output_text.delete("1.0", "end")
+    output_text.configure(state="disabled")
+
+
+actions_frame = ttk.Frame(replace_body)
+actions_frame.pack(fill="x", pady=(0, 8))
+reg(ttk.Button(actions_frame, text="", command=do_replace),
+    "replace_btn").pack(side="left")
+reg(ttk.Button(actions_frame, text="", command=copy_result),
+    "copy_result").pack(side="left", padx=(6, 0))
+reg(ttk.Button(actions_frame, text="", command=clear_replace),
+    "clear_btn").pack(side="left", padx=(6, 0))
+
+reg(ttk.Label(replace_body, text=""), "result_ro").pack(anchor="w")
+
+output_frame = ttk.Frame(replace_body)
+output_frame.pack(fill="both", expand=True, pady=(4, 0))
+
+output_text = tk.Text(output_frame, wrap="word", height=6, state="disabled")
+output_scroll = ttk.Scrollbar(output_frame, orient="vertical",
+                              command=output_text.yview)
+output_text.configure(yscrollcommand=output_scroll.set)
+output_text.pack(side="left", fill="both", expand=True)
+output_scroll.pack(side="right", fill="y")
 
 
 if not os.path.isdir("docs"):
     os.makedirs("docs")
-dir_content = os.listdir('docs')
-docs_list = filter(dir_content)
 
-
-ttk.Button(
-    menu_buttons,
-    text="Подгон под ГОСТ",
-    command=lambda: show_page(format_frame),
-).pack(fill="x", pady=6)
-
-ttk.Button(
-    menu_buttons,
-    text="Замена текста",
-    command=lambda: show_page(replace_frame),
-).pack(fill="x", pady=6)
-
-ttk.Button(
-    menu_buttons,
-    text="Выход",
-    command=root.destroy,
-).pack(fill="x", pady=(20, 6))
+PAGE_SIZES = {
+    main_frame: "400x440",
+    format_frame: "700x900",
+    replace_frame: "650x780",
+}
 
 
 def show_page(page: ttk.Frame):
     for child in container.winfo_children():
         child.pack_forget()
     page.pack(fill="both", expand=True)
+    root.geometry(PAGE_SIZES.get(page, "700x900"))
+
 
 show_page(main_frame)
 root.mainloop()
