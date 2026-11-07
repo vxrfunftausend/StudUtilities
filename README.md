@@ -27,7 +27,7 @@
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/your-username/StudUtilities.git
+git clone https://github.com/vxrfunftausend/StudUtilities.git
 cd StudUtilities
 ```
 
@@ -88,7 +88,7 @@ python start.py
 1. Клонируйте репозиторий:
 
 ```bash
-git clone https://github.com/your-username/StudUtilities.git
+git clone https://github.com/vxrfunftausend/StudUtilities.git
 cd StudUtilities
 ```
 
